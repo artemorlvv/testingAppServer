@@ -49,6 +49,9 @@ const Question = sequelize.define("Question", {
     type: DataTypes.INTEGER,
     allowNull: false,
   },
+  correct_answer: {
+    type: DataTypes.STRING,
+  },
 })
 
 const Option = sequelize.define("Option", {
@@ -104,4 +107,4 @@ User.hasMany(Result, { foreignKey: "user_id" })
 Result.belongsTo(Test, { foreignKey: "test_id" })
 Test.hasMany(Result, { foreignKey: "test_id" })
 
-export { User }
+export { User, Test, Question, Option, Answer, Result }
