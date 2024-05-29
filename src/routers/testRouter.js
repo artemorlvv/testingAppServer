@@ -12,5 +12,6 @@ testRouter.post(
   testController.create
 )
 testRouter.get("/", authMiddleware, testController.getAll)
+testRouter.get("/:id", authMiddleware, testController.getTest)
 
 export default testRouter

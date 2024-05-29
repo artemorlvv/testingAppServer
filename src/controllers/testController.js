@@ -73,7 +73,26 @@ class TestController {
     try {
       const tests = await Test.findAll()
       console.log(tests)
-      res.json({ message: tests })
+      res.json(tests)
+    } catch (e) {
+      next(e)
+      console.log(e)
+    }
+  }
+
+  async getTest(req, res, next) {
+    try {
+      const { id } = req.params
+      const test = await Test.findOne({ where: { id } })
+      const questions = await Question.findAll({
+        where: { test_id: id },
+        order: [["order", "ASC"]],
+      })
+      const formattedQuestions = questions.map((question) => {
+        const { test_id, correct_answer, ...rest } = question.toJSON()
+        return rest
+      })
+      return res.json({ title: test.title, questions: formattedQuestions })
     } catch (e) {
       next(e)
       console.log(e)
