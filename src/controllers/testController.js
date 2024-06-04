@@ -88,10 +88,29 @@ class TestController {
         where: { test_id: id },
         order: [["order", "ASC"]],
       })
-      const formattedQuestions = questions.map((question) => {
-        const { test_id, correct_answer, ...rest } = question.toJSON()
-        return rest
-      })
+      // const formattedQuestions = questions.map((question) => {
+      //   const { test_id, correct_answer, ...rest } = question.toJSON()
+      //   return rest
+      // })
+      const formattedQuestions = await Promise.all(
+        questions.map(async (question) => {
+          const options = await Option.findAll({
+            where: { question_id: question.id },
+            order: [["id", "ASC"]],
+          })
+
+          const formattedOptions = options.map((option) => {
+            const { is_correct, question_id, ...rest } = option.toJSON()
+            return rest
+          })
+
+          const { test_id, correct_answer, ...rest } = question.toJSON()
+          return {
+            ...rest,
+            options: formattedOptions,
+          }
+        })
+      )
       return res.json({ title: test.title, questions: formattedQuestions })
     } catch (e) {
       next(e)
