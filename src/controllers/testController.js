@@ -1,5 +1,12 @@
 import { sequelize } from "../database/index.js"
-import { Option, Question, Test, User } from "../database/models.js"
+import {
+  Answer,
+  Option,
+  Question,
+  Result,
+  Test,
+  User,
+} from "../database/models.js"
 import ApiErrors from "../errors/ApiErrors.js"
 
 class TestController {
@@ -88,10 +95,15 @@ class TestController {
         where: { test_id: id },
         order: [["order", "ASC"]],
       })
-      // const formattedQuestions = questions.map((question) => {
-      //   const { test_id, correct_answer, ...rest } = question.toJSON()
-      //   return rest
-      // })
+      const { login } = req.user_info
+      const user = await User.findOne({ where: { login } })
+      const result = await Result.findOne({
+        where: { user_id: user.id, test_id: test.id },
+      })
+      const userAnswers = await Answer.findAll({
+        where: { user_id: user.id, question_id: questions.map((q) => q.id) },
+      })
+
       const formattedQuestions = await Promise.all(
         questions.map(async (question) => {
           const options = await Option.findAll({
@@ -111,7 +123,176 @@ class TestController {
           }
         })
       )
-      return res.json({ title: test.title, questions: formattedQuestions })
+
+      const formattedUserAnswers = {}
+      const correctAnswers = {}
+      if (userAnswers)
+        await Promise.all(
+          userAnswers.map(async (answer) => {
+            const { question_type, correct_answer } = questions.find(
+              (q) => q.id === answer.question_id
+            )
+            // formattedUserAnswers[answer.question_id] = question_type
+            if (question_type === "input") {
+              formattedUserAnswers[answer.question_id] = answer.answer_text
+              correctAnswers[answer.question_id] = correct_answer
+            } else if (question_type === "radio") {
+              formattedUserAnswers[answer.question_id] =
+                answer.selected_option_id
+              const foundOption = await Option.findOne({
+                where: { question_id: answer.question_id, is_correct: true },
+              })
+              correctAnswers[answer.question_id] = foundOption.id
+            } else if (question_type === "checkbox") {
+              if (!formattedUserAnswers[answer.question_id])
+                formattedUserAnswers[answer.question_id] = []
+              formattedUserAnswers[answer.question_id].push(
+                answer.selected_option_id
+              )
+              if (!correctAnswers[answer.question_id]) {
+                const correctOptions = await Option.findAll({
+                  where: { question_id: answer.question_id, is_correct: true },
+                })
+                const correctOptionIds = correctOptions.map(
+                  (option) => option.id
+                )
+                correctAnswers[answer.question_id] = correctOptionIds
+              }
+            }
+          })
+        )
+
+      const results = {}
+
+      if (result) {
+        for (const question of questions) {
+          const correctAnswer = question.correct_answer
+          const questionId = question.id
+          const questionType = question.question_type
+
+          const userAnswer = formattedUserAnswers[questionId]
+
+          if (questionType === "input") {
+            results[questionId] = userAnswer === correctAnswer
+          } else if (questionType === "radio") {
+            const correctOption = await Option.findOne({
+              where: { question_id: questionId, is_correct: true },
+            })
+            results[questionId] =
+              correctOption && correctOption.id === userAnswer
+          } else if (questionType === "checkbox") {
+            const correctOptions = await Option.findAll({
+              where: { question_id: questionId, is_correct: true },
+            })
+            const correctOptionIds = correctOptions.map((option) => option.id)
+
+            results[questionId] =
+              Array.isArray(userAnswer) &&
+              userAnswer.length === correctOptionIds.length &&
+              userAnswer.every((answer) => correctOptionIds.includes(answer))
+          }
+        }
+      }
+
+      return res.json({
+        title: test.title,
+        questions: formattedQuestions,
+        result,
+        userAnswers: formattedUserAnswers,
+        correctOptions: results,
+        correctAnswers,
+      })
+    } catch (e) {
+      next(e)
+      console.log(e)
+    }
+  }
+
+  async checkAnswers(req, res, next) {
+    try {
+      const { testId, selectedOptions } = req.body
+      const { login } = req.user_info
+      const user = await User.findOne({ where: { login } })
+      // Fetch the test and its questions
+      const test = await Test.findOne({ where: { id: testId } })
+      if (!test) {
+        return res.status(404).json({ error: "Test not found" })
+      }
+
+      const questions = await Question.findAll({ where: { test_id: testId } })
+
+      // Prepare a response object to hold the correctness and correct answers
+      const results = {}
+      const correctAnswers = {}
+      let resultScore = 0
+
+      for (const question of questions) {
+        const correctAnswer = question.correct_answer
+        const questionId = question.id
+        const questionType = question.question_type
+
+        // Get the user's answer for the current question
+        const userAnswer = selectedOptions[questionId]
+
+        if (questionType === "input") {
+          // For input type questions, compare directly
+          results[questionId] = userAnswer === correctAnswer
+          correctAnswers[questionId] = correctAnswer
+          if (results[questionId]) resultScore++
+          await Answer.create({
+            user_id: user.id,
+            question_id: questionId,
+            answer_text: userAnswer,
+          })
+        } else if (questionType === "radio") {
+          // For radio type questions, find the correct option
+          const correctOption = await Option.findOne({
+            where: { question_id: questionId, is_correct: true },
+          })
+          results[questionId] = correctOption && correctOption.id === userAnswer
+          correctAnswers[questionId] = correctOption ? correctOption.id : null
+          if (results[questionId]) resultScore++
+          await Answer.create({
+            user_id: user.id,
+            question_id: questionId,
+            selected_option_id: userAnswer,
+          })
+        } else if (questionType === "checkbox") {
+          // For checkbox type questions, find all correct options
+          const correctOptions = await Option.findAll({
+            where: { question_id: questionId, is_correct: true },
+          })
+          const correctOptionIds = correctOptions.map((option) => option.id)
+
+          // Check if user's answers match the correct options
+          results[questionId] =
+            Array.isArray(userAnswer) &&
+            userAnswer.length === correctOptionIds.length &&
+            userAnswer.every((answer) => correctOptionIds.includes(answer))
+          correctAnswers[questionId] = correctOptionIds
+          if (results[questionId]) resultScore++
+          for (const answer of userAnswer) {
+            await Answer.create({
+              user_id: user.id,
+              question_id: questionId,
+              selected_option_id: answer,
+            })
+          }
+        }
+      }
+      const result = await Result.create({
+        score: resultScore,
+        passed_at: new Date(),
+        user_id: user.id,
+        test_id: test.id,
+      })
+
+      // Send back the results and correct answers
+      return res.json({
+        correctOptions: results,
+        correctAnswers,
+        result,
+      })
     } catch (e) {
       next(e)
       console.log(e)

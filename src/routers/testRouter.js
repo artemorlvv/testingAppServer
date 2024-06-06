@@ -13,5 +13,6 @@ testRouter.post(
 )
 testRouter.get("/", authMiddleware, testController.getAll)
 testRouter.get("/:id", authMiddleware, testController.getTest)
+testRouter.post("/check", authMiddleware, testController.checkAnswers)
 
 export default testRouter
