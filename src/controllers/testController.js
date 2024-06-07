@@ -70,7 +70,6 @@ class TestController {
       res.json({ message: "here in create test" })
     } catch (e) {
       await t.rollback()
-      console.log("ошибка")
       console.log(e)
       next(e)
     }
@@ -79,7 +78,6 @@ class TestController {
   async getAll(req, res, next) {
     try {
       const tests = await Test.findAll()
-      console.log(tests)
       res.json(tests)
     } catch (e) {
       next(e)
@@ -100,6 +98,7 @@ class TestController {
       const result = await Result.findOne({
         where: { user_id: user.id, test_id: test.id },
       })
+
       const userAnswers = await Answer.findAll({
         where: { user_id: user.id, question_id: questions.map((q) => q.id) },
       })
