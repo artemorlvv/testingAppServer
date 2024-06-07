@@ -299,6 +299,17 @@ class TestController {
     }
   }
 
+  async getMy(req, res, next) {
+    try {
+      const { login } = req.user_info
+      const user = await User.findOne({ where: { login } })
+      const tests = await Test.findAll({ where: { created_by: user.id } })
+      return res.json({ tests })
+    } catch (e) {
+      next(e)
+    }
+  }
+
   async test(req, res, next) {
     try {
     } catch (e) {
