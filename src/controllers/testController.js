@@ -1,3 +1,4 @@
+import { Op } from "sequelize"
 import { sequelize } from "../database/index.js"
 import {
   Answer,
@@ -141,6 +142,54 @@ class TestController {
         testTitle: testInfo.title,
         questionCount: testInfo.dataValues.question_count,
         passedCount: passedCount,
+        results: formattedResults,
+      })
+    } catch (e) {
+      next(e)
+      console.log(e)
+    }
+  }
+
+  async getResultsWithParams(req, res, next) {
+    try {
+      const { testId } = req.params
+      const { first_name, second_name, login, dateOrder, scoreOrder } = req.body
+
+      const where = {}
+      if (first_name.trim() !== "")
+        where.first_name = { [Op.iLike]: `${first_name.trim()}%` }
+      if (second_name.trim() !== "")
+        where.second_name = { [Op.iLike]: `${second_name.trim()}%` }
+      if (login.trim() !== "") where.login = { [Op.iLike]: `${login.trim()}%` }
+
+      const order = []
+      if (dateOrder.trim() !== "") order.push(["passed_at", dateOrder])
+      if (scoreOrder.trim() !== "") order.push(["score", scoreOrder])
+
+      const resultInfo = await Result.findAll({
+        where: { test_id: testId },
+        attributes: ["id", "score", "passed_at"],
+        include: [
+          {
+            model: User,
+            attributes: ["id", "first_name", "second_name", "login"],
+            where,
+          },
+        ],
+        limit: 5,
+        order,
+      })
+
+      const formattedResults = resultInfo.map((result) => ({
+        userId: result.User.id,
+        firstName: result.User.first_name,
+        secondName: result.User.second_name,
+        login: result.User.login,
+        passedAt: result.passed_at,
+        score: result.score,
+      }))
+
+      return res.json({
         results: formattedResults,
       })
     } catch (e) {
