@@ -89,7 +89,10 @@ class TestController {
   async getResults(req, res, next) {
     try {
       const { testId } = req.params
-      // Получаем информацию о тесте, включая количество вопросов
+      const page = req.query.page ? parseInt(req.query.page) : 1
+      const pageSize = 5
+      const offset = (page - 1) * pageSize
+
       const testInfo = await Test.findOne({
         where: { id: testId },
         attributes: [
@@ -113,6 +116,7 @@ class TestController {
         where: { test_id: testId },
       })
 
+      const totalPages = Math.ceil(passedCount / pageSize)
       // Получаем информацию о результатах, включая информацию о пользователях
       const resultInfo = await Result.findAll({
         where: { test_id: testId },
@@ -123,7 +127,8 @@ class TestController {
             attributes: ["id", "first_name", "second_name", "login"],
           },
         ],
-        limit: 5,
+        limit: pageSize,
+        offset,
         order: [["passed_at", "DESC"]],
       })
 
@@ -139,6 +144,7 @@ class TestController {
       }))
 
       return res.json({
+        totalPages,
         testTitle: testInfo.title,
         questionCount: testInfo.dataValues.question_count,
         passedCount: passedCount,
@@ -154,6 +160,9 @@ class TestController {
     try {
       const { testId } = req.params
       const { first_name, second_name, login, dateOrder, scoreOrder } = req.body
+      const page = req.query.page ? parseInt(req.query.page) : 1
+      const pageSize = 5
+      const offset = (page - 1) * pageSize
 
       const where = {}
       if (first_name.trim() !== "")
@@ -166,6 +175,18 @@ class TestController {
       if (dateOrder.trim() !== "") order.push(["passed_at", dateOrder])
       if (scoreOrder.trim() !== "") order.push(["score", scoreOrder])
 
+      const totalResults = await Result.count({
+        where: { test_id: testId },
+        include: [
+          {
+            model: User,
+            where,
+          },
+        ],
+      })
+
+      const totalPages = Math.ceil(totalResults / pageSize)
+
       const resultInfo = await Result.findAll({
         where: { test_id: testId },
         attributes: ["id", "score", "passed_at"],
@@ -176,7 +197,8 @@ class TestController {
             where,
           },
         ],
-        limit: 5,
+        limit: pageSize,
+        offset,
         order,
       })
 
@@ -191,6 +213,7 @@ class TestController {
 
       return res.json({
         results: formattedResults,
+        totalPages,
       })
     } catch (e) {
       next(e)
