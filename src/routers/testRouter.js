@@ -8,26 +8,26 @@ const testRouter = Router()
 testRouter.post(
   "/create",
   authMiddleware,
-  checkRoleMiddleware("TEACHER"),
+  checkRoleMiddleware(["TEACHER", "ADMIN"]),
   testController.create
 )
 testRouter.get("/", authMiddleware, testController.getAll)
 testRouter.get(
   "/my",
   authMiddleware,
-  checkRoleMiddleware("TEACHER"),
+  checkRoleMiddleware(["TEACHER", "ADMIN"]),
   testController.getMy
 )
 testRouter.get(
   "/results/:testId",
   authMiddleware,
-  checkRoleMiddleware("TEACHER"),
+  checkRoleMiddleware(["TEACHER", "ADMIN"]),
   testController.getResults
 )
 testRouter.post(
   "/results/:testId",
   authMiddleware,
-  checkRoleMiddleware("TEACHER"),
+  checkRoleMiddleware(["TEACHER", "ADMIN"]),
   testController.getResultsWithParams
 )
 testRouter.get("/:id", authMiddleware, testController.getTest)

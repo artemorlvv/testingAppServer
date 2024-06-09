@@ -68,7 +68,7 @@ class TestController {
         }
       }
       await t.commit()
-      res.json({ message: "here in create test" })
+      res.json({ id: test.id })
     } catch (e) {
       await t.rollback()
       console.log(e)

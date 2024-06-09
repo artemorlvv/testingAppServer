@@ -163,6 +163,49 @@ class UserController {
       next(e)
     }
   }
+
+  async getAll(req, res, next) {
+    try {
+      const { login, first_name, second_name, role, dateOrder } = req.query
+
+      const page = req.query.page ? parseInt(req.query.page) : 1
+      const pageSize = 5
+      const offset = (page - 1) * pageSize
+
+      const where = {}
+
+      if (first_name && first_name.trim() !== "")
+        where.first_name = { [Op.iLike]: `${first_name.trim()}%` }
+      if (second_name && second_name.trim() !== "")
+        where.second_name = { [Op.iLike]: `${second_name.trim()}%` }
+      if (login && login.trim() !== "")
+        where.login = { [Op.iLike]: `${login.trim()}%` }
+      if (role && role.trim() !== "")
+        where.role = { [Op.iLike]: `${role.trim()}` }
+
+      const totalUsers = await User.count({ where })
+
+      const totalPages = Math.ceil(totalUsers / pageSize)
+
+      const users = await User.findAll({
+        where,
+        order: [["registration_date", dateOrder]],
+        offset,
+        limit: pageSize,
+        attributes: [
+          "id",
+          "first_name",
+          "second_name",
+          "login",
+          "role",
+          "registration_date",
+        ],
+      })
+      return res.json({ users, totalPages })
+    } catch (e) {
+      next(e)
+    }
+  }
 }
 
 export default new UserController()

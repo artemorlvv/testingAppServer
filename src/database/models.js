@@ -24,6 +24,11 @@ const User = sequelize.define("User", {
     allowNull: false,
     defaultValue: "USER",
   },
+  registration_date: {
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW,
+  },
 })
 
 const Test = sequelize.define("Test", {
@@ -33,6 +38,11 @@ const Test = sequelize.define("Test", {
   },
   description: {
     type: DataTypes.STRING,
+  },
+  created_at: {
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW,
   },
 })
 
