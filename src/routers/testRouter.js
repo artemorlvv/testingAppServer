@@ -18,6 +18,12 @@ testRouter.get(
   checkRoleMiddleware("TEACHER"),
   testController.getMy
 )
+testRouter.get(
+  "/results/:testId",
+  authMiddleware,
+  checkRoleMiddleware("TEACHER"),
+  testController.getResults
+)
 testRouter.get("/:id", authMiddleware, testController.getTest)
 testRouter.post("/check", authMiddleware, testController.checkAnswers)
 

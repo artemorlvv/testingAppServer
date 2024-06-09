@@ -85,6 +85,70 @@ class TestController {
     }
   }
 
+  async getResults(req, res, next) {
+    try {
+      const { testId } = req.params
+      // Получаем информацию о тесте, включая количество вопросов
+      const testInfo = await Test.findOne({
+        where: { id: testId },
+        attributes: [
+          "title",
+          [
+            sequelize.fn("COUNT", sequelize.col("Questions.id")),
+            "question_count",
+          ],
+        ],
+        include: [
+          {
+            model: Question,
+            attributes: [],
+          },
+        ],
+        group: ["Test.id"],
+      })
+
+      // Получаем количество пользователей, сдавших тест
+      const passedCount = await Result.count({
+        where: { test_id: testId },
+      })
+
+      // Получаем информацию о результатах, включая информацию о пользователях
+      const resultInfo = await Result.findAll({
+        where: { test_id: testId },
+        attributes: ["id", "score", "passed_at"],
+        include: [
+          {
+            model: User,
+            attributes: ["id", "first_name", "second_name", "login"],
+          },
+        ],
+        limit: 5,
+        order: [["passed_at", "DESC"]],
+      })
+
+      // Форматируем результаты
+      const formattedResults = resultInfo.map((result) => ({
+        resultId: result.id,
+        userId: result.User.id,
+        firstName: result.User.first_name,
+        secondName: result.User.second_name,
+        login: result.User.login,
+        passedAt: result.passed_at,
+        score: result.score,
+      }))
+
+      return res.json({
+        testTitle: testInfo.title,
+        questionCount: testInfo.dataValues.question_count,
+        passedCount: passedCount,
+        results: formattedResults,
+      })
+    } catch (e) {
+      next(e)
+      console.log(e)
+    }
+  }
+
   async getTest(req, res, next) {
     try {
       const { id } = req.params

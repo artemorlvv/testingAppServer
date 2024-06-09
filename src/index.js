@@ -10,7 +10,8 @@ import cookieParser from "cookie-parser"
 const app = express()
 const PORT = "5000"
 
-app.use(cors({ credentials: true, origin: "http://62.217.180.217:3000" }))
+// app.use(cors({ credentials: true, origin: "http://62.217.180.217:3000" }))
+app.use(cors({ credentials: true, origin: process.env.CLIENT_URL }))
 app.use(express.json())
 app.use(cookieParser())
 app.use("/api", router)
