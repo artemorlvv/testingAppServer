@@ -1,4 +1,4 @@
-import { Op } from "sequelize"
+import { Op, literal } from "sequelize"
 import { sequelize } from "../database/index.js"
 import {
   Answer,
@@ -77,24 +77,65 @@ class TestController {
 
   async getAll(req, res, next) {
     try {
+      const { user_info } = req
       const { first_name, second_name, title, dateOrder, result } = req.query
       const page = req.query.page ? parseInt(req.query.page) : 1
       const pageSize = 5
       const offset = (page - 1) * pageSize
 
-      const where = {}
-      if (first_name && first_name.trim() !== "")
-        where.first_name = { [Op.iLike]: `${first_name.trim()}%` }
-      if (second_name && second_name.trim() !== "")
-        where.second_name = { [Op.iLike]: `${second_name.trim()}%` }
-      if (title && title.trim() !== "")
-        where.title = { [Op.iLike]: `${title.trim()}%` }
+      const user = await User.findOne({ where: { login: user_info.login } })
 
-      const tests = await Test.findAll({
+      const where = {
+        [Op.and]: [],
+      }
+      if (title && title.trim() !== "") {
+        where[Op.and].push({ title: { [Op.iLike]: `%${title.trim()}%` } })
+      }
+      if (result === "notPassed") {
+        where[Op.and].push({
+          id: {
+            [Op.notIn]: literal(
+              `(SELECT "test_id" FROM "Result" WHERE "user_id" = ${user.id})`
+            ),
+          },
+        })
+      }
+
+      const userWhere = {}
+      if (first_name && first_name.trim() !== "")
+        userWhere.first_name = { [Op.iLike]: `${first_name.trim()}%` }
+      if (second_name && second_name.trim() !== "")
+        userWhere.secondName = { [Op.iLike]: `${second_name.trim()}%` }
+
+      const { count, rows: tests } = await Test.findAndCountAll({
         where,
+        include: [
+          {
+            model: Result,
+            where: {
+              user_id: user.id,
+            },
+            attributes: ["score"],
+            required: result === "passed" ? true : false,
+          },
+          {
+            model: User,
+            attributes: ["first_name", "second_name"],
+            where: userWhere,
+          },
+          {
+            model: Question,
+            attributes: ["id"],
+          },
+        ],
+        offset,
+        limit: pageSize,
+        order: [["created_at", dateOrder]],
       })
 
-      res.json({ tests })
+      const totalPages = Math.ceil(count / pageSize)
+
+      res.json({ tests, totalPages, count })
     } catch (e) {
       next(e)
       console.log(e)
