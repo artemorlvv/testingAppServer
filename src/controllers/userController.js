@@ -185,11 +185,7 @@ class UserController {
           [Op.iLike]: `${role.trim()}`,
         }
 
-      const totalUsers = await User.count({ where })
-
-      const totalPages = Math.ceil(totalUsers / pageSize)
-
-      const users = await User.findAll({
+      const { count, rows: users } = await User.findAndCountAll({
         where,
         order: [["registration_date", dateOrder]],
         offset,
@@ -203,7 +199,8 @@ class UserController {
           "registration_date",
         ],
       })
-      return res.json({ users, totalPages })
+      const totalPages = Math.ceil(count / pageSize)
+      return res.json({ users, totalPages, count })
     } catch (e) {
       next(e)
     }
