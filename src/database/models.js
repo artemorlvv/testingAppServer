@@ -36,9 +36,6 @@ const Test = sequelize.define("Test", {
     type: DataTypes.STRING,
     allowNull: false,
   },
-  description: {
-    type: DataTypes.STRING,
-  },
   created_at: {
     type: DataTypes.DATE,
     allowNull: false,
@@ -52,11 +49,7 @@ const Question = sequelize.define("Question", {
     allowNull: false,
   },
   question_type: {
-    type: DataTypes.ENUM("radio", "checkbox", "input"),
-    allowNull: false,
-  },
-  order: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.STRING,
     allowNull: false,
   },
   correct_answer: {

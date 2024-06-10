@@ -49,7 +49,6 @@ class TestController {
             question_text,
             question_type,
             correct_answer: question_type === "input" ? correct_answer : null,
-            order: i + 1,
           },
           { transaction: t }
         )
@@ -78,8 +77,24 @@ class TestController {
 
   async getAll(req, res, next) {
     try {
-      const tests = await Test.findAll()
-      res.json(tests)
+      const { first_name, second_name, title, dateOrder, result } = req.query
+      const page = req.query.page ? parseInt(req.query.page) : 1
+      const pageSize = 5
+      const offset = (page - 1) * pageSize
+
+      const where = {}
+      if (first_name && first_name.trim() !== "")
+        where.first_name = { [Op.iLike]: `${first_name.trim()}%` }
+      if (second_name && second_name.trim() !== "")
+        where.second_name = { [Op.iLike]: `${second_name.trim()}%` }
+      if (title && title.trim() !== "")
+        where.title = { [Op.iLike]: `${title.trim()}%` }
+
+      const tests = await Test.findAll({
+        where,
+      })
+
+      res.json({ tests })
     } catch (e) {
       next(e)
       console.log(e)
@@ -227,7 +242,6 @@ class TestController {
       const test = await Test.findOne({ where: { id } })
       const questions = await Question.findAll({
         where: { test_id: id },
-        order: [["order", "ASC"]],
       })
       const { login } = req.user_info
       const user = await User.findOne({ where: { login } })
