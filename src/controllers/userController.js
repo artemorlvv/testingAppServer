@@ -1,4 +1,4 @@
-import { Op } from "sequelize"
+import { Op, literal } from "sequelize"
 import { User } from "../database/models.js"
 import ApiErrors from "../errors/ApiErrors.js"
 import bcrypt from "bcrypt"
@@ -181,7 +181,9 @@ class UserController {
       if (login && login.trim() !== "")
         where.login = { [Op.iLike]: `${login.trim()}%` }
       if (role && role.trim() !== "")
-        where.role = { [Op.iLike]: `${role.trim()}` }
+        where.role = {
+          [Op.iLike]: `${role.trim()}`,
+        }
 
       const totalUsers = await User.count({ where })
 
@@ -204,6 +206,18 @@ class UserController {
       return res.json({ users, totalPages })
     } catch (e) {
       next(e)
+    }
+  }
+
+  async changeRole(req, res, next) {
+    try {
+      const { userId, role } = req.body
+      const user = await User.findOne({ where: { id: userId } })
+      user.role = role
+      user.save()
+      res.json({ message: "Успешно" })
+    } catch (e) {
+      console.log(e)
     }
   }
 }

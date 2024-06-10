@@ -16,5 +16,11 @@ userRouter.get(
   checkRoleMiddleware(["ADMIN"]),
   userController.getAll
 )
+userRouter.post(
+  "/change_role",
+  authMiddleware,
+  checkRoleMiddleware(["ADMIN"]),
+  userController.changeRole
+)
 
 export default userRouter
