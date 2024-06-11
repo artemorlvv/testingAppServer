@@ -31,6 +31,12 @@ testRouter.post(
   testController.getResultsWithParams
 )
 testRouter.get("/:id", authMiddleware, testController.getTest)
+testRouter.get(
+  "/result/:id",
+  authMiddleware,
+  checkRoleMiddleware(["TEACHER", "ADMIN"]),
+  testController.getTestResult
+)
 testRouter.post("/check", authMiddleware, testController.checkAnswers)
 
 export default testRouter

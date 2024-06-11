@@ -137,7 +137,6 @@ class UserController {
       const verified = jwt.verify(refreshToken, process.env.REFRESH_SECRET)
       if (!verified) throw ApiErrors.unauthorized("Не авторизован")
 
-      console.log(verified)
       const user = await User.findOne({ where: { login: verified.login } })
       if (!user) throw ApiErrors.unauthorized("Не авторизован")
 

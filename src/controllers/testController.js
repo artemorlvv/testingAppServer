@@ -398,6 +398,147 @@ class TestController {
     }
   }
 
+  async getTestResult(req, res, next) {
+    try {
+      const { id } = req.params
+
+      const result = await Result.findOne({
+        where: { id },
+
+        include: [
+          {
+            model: User,
+          },
+          {
+            model: Test,
+            include: [
+              {
+                model: Question,
+              },
+            ],
+          },
+        ],
+      })
+
+      const user = result.User
+
+      const test = result.Test
+
+      const questions = test.Questions
+
+      const userAnswers = await Answer.findAll({
+        where: { user_id: user.id, question_id: questions.map((q) => q.id) },
+      })
+
+      const formattedQuestions = await Promise.all(
+        questions.map(async (question) => {
+          const options = await Option.findAll({
+            where: { question_id: question.id },
+            order: [["id", "ASC"]],
+          })
+
+          const formattedOptions = options.map((option) => {
+            const { is_correct, question_id, ...rest } = option.toJSON()
+            return rest
+          })
+
+          const { test_id, correct_answer, ...rest } = question.toJSON()
+          return {
+            ...rest,
+            options: formattedOptions,
+          }
+        })
+      )
+
+      const formattedUserAnswers = {}
+      const correctAnswers = {}
+      if (userAnswers)
+        await Promise.all(
+          userAnswers.map(async (answer) => {
+            const { question_type, correct_answer } = questions.find(
+              (q) => q.id === answer.question_id
+            )
+            // formattedUserAnswers[answer.question_id] = question_type
+            if (question_type === "input") {
+              formattedUserAnswers[answer.question_id] = answer.answer_text
+              correctAnswers[answer.question_id] = correct_answer
+            } else if (question_type === "radio") {
+              formattedUserAnswers[answer.question_id] =
+                answer.selected_option_id
+              const foundOption = await Option.findOne({
+                where: { question_id: answer.question_id, is_correct: true },
+              })
+              correctAnswers[answer.question_id] = foundOption.id
+            } else if (question_type === "checkbox") {
+              if (!formattedUserAnswers[answer.question_id])
+                formattedUserAnswers[answer.question_id] = []
+              formattedUserAnswers[answer.question_id].push(
+                answer.selected_option_id
+              )
+              if (!correctAnswers[answer.question_id]) {
+                const correctOptions = await Option.findAll({
+                  where: { question_id: answer.question_id, is_correct: true },
+                })
+                const correctOptionIds = correctOptions.map(
+                  (option) => option.id
+                )
+                correctAnswers[answer.question_id] = correctOptionIds
+              }
+            }
+          })
+        )
+
+      const results = {}
+
+      if (result) {
+        for (const question of questions) {
+          const correctAnswer = question.correct_answer
+          const questionId = question.id
+          const questionType = question.question_type
+
+          const userAnswer = formattedUserAnswers[questionId]
+
+          if (questionType === "input") {
+            results[questionId] = userAnswer === correctAnswer
+          } else if (questionType === "radio") {
+            const correctOption = await Option.findOne({
+              where: { question_id: questionId, is_correct: true },
+            })
+            results[questionId] =
+              correctOption && correctOption.id === userAnswer
+          } else if (questionType === "checkbox") {
+            const correctOptions = await Option.findAll({
+              where: { question_id: questionId, is_correct: true },
+            })
+            const correctOptionIds = correctOptions.map((option) => option.id)
+
+            results[questionId] =
+              Array.isArray(userAnswer) &&
+              userAnswer.length === correctOptionIds.length &&
+              userAnswer.every((answer) => correctOptionIds.includes(answer))
+          }
+        }
+      }
+
+      return res.json({
+        title: test.title,
+        questions: formattedQuestions,
+        result,
+        userAnswers: formattedUserAnswers,
+        correctOptions: results,
+        correctAnswers,
+        user: {
+          first_name: user.first_name,
+          second_name: user.second_name,
+          login: user.login,
+        },
+      })
+    } catch (e) {
+      next(e)
+      console.log(e)
+    }
+  }
+
   async checkAnswers(req, res, next) {
     try {
       const { testId, selectedOptions } = req.body
@@ -491,9 +632,39 @@ class TestController {
 
   async getMy(req, res, next) {
     try {
-      const { login } = req.user_info
-      const user = await User.findOne({ where: { login } })
-      const tests = await Test.findAll({ where: { created_by: user.id } })
+      const { user_info } = req
+      const { title, dateOrder } = req.query
+      const page = req.query.page ? parseInt(req.query.page) : 1
+      const pageSize = 5
+      const offset = (page - 1) * pageSize
+
+      const user = await User.findOne({ where: { login: user_info.login } })
+
+      const where = { created_by: user.id }
+      if (title && title.trim() !== "") {
+        where.title = { [Op.iLike]: `%${title.trim()}%` }
+      }
+
+      const { count, rows: tests } = await Test.findAndCountAll({
+        where,
+        include: [
+          {
+            model: Question,
+            attributes: ["id"],
+          },
+          {
+            model: Result,
+            attributes: ["id"],
+          },
+        ],
+        offset,
+        limit: pageSize,
+        order: [["created_at", dateOrder]],
+      })
+
+      const totalPages = Math.ceil(count / pageSize)
+
+      res.json({ tests, totalPages, count })
       return res.json({ tests })
     } catch (e) {
       next(e)
