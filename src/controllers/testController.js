@@ -123,14 +123,22 @@ class TestController {
             attributes: ["first_name", "second_name"],
             where: userWhere,
           },
-          {
-            model: Question,
-            attributes: ["id"],
-          },
         ],
+        attributes: {
+          include: [
+            [
+              sequelize.literal(
+                '(SELECT COUNT(DISTINCT "Question"."id") FROM "Question" WHERE "Question"."test_id" = "Test"."id")'
+              ),
+              "question_count",
+            ],
+          ],
+          exclude: [],
+        },
         offset,
         limit: pageSize,
         order: [["created_at", dateOrder]],
+        subQuery: false,
       })
 
       const totalPages = Math.ceil(count / pageSize)
@@ -648,16 +656,24 @@ class TestController {
 
       const { count, rows: tests } = await Test.findAndCountAll({
         where,
-        include: [
-          {
-            model: Question,
-            attributes: ["id"],
-          },
-          {
-            model: Result,
-            attributes: ["id"],
-          },
-        ],
+        attributes: {
+          include: [
+            [
+              sequelize.literal(
+                '(SELECT COUNT(DISTINCT "Question"."id") FROM "Question" WHERE "Question"."test_id" = "Test"."id")'
+              ),
+              "question_count",
+            ],
+            [
+              sequelize.literal(
+                '(SELECT COUNT(DISTINCT "Result"."id") FROM "Result" WHERE "Result"."test_id" = "Test"."id")'
+              ),
+              "result_count",
+            ],
+          ],
+          exclude: [],
+        },
+        subQuery: false,
         offset,
         limit: pageSize,
         order: [["created_at", dateOrder]],
@@ -665,8 +681,7 @@ class TestController {
 
       const totalPages = Math.ceil(count / pageSize)
 
-      res.json({ tests, totalPages, count })
-      return res.json({ tests })
+      return res.json({ tests, totalPages, count })
     } catch (e) {
       next(e)
     }
