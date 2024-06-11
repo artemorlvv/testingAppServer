@@ -260,6 +260,7 @@ class TestController {
 
       const formattedResults = resultInfo.map((result) => ({
         userId: result.User.id,
+        resultId: result.id,
         firstName: result.User.first_name,
         secondName: result.User.second_name,
         login: result.User.login,
