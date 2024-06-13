@@ -611,12 +611,14 @@ class TestController {
             userAnswer.every((answer) => correctOptionIds.includes(answer))
           correctAnswers[questionId] = correctOptionIds
           if (results[questionId]) resultScore++
-          for (const answer of userAnswer) {
-            await Answer.create({
-              user_id: user.id,
-              question_id: questionId,
-              selected_option_id: answer,
-            })
+          if (userAnswer) {
+            for (const answer of userAnswer) {
+              await Answer.create({
+                user_id: user.id,
+                question_id: questionId,
+                selected_option_id: answer,
+              })
+            }
           }
         }
       }
