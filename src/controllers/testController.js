@@ -7,6 +7,7 @@ import {
   Result,
   Test,
   User,
+  UserQuestion,
 } from "../database/models.js"
 import ApiErrors from "../errors/ApiErrors.js"
 
@@ -14,7 +15,7 @@ class TestController {
   async create(req, res, next) {
     const t = await sequelize.transaction()
     try {
-      let { title, description, questions } = req.body
+      let { title, description, questions, answers_visible } = req.body
       const { login } = req.user_info
       if (!title) throw ApiErrors.badRequest("Не указано название теста")
       if (!questions || !Array.isArray(questions) || questions.length === 0)
@@ -27,6 +28,7 @@ class TestController {
           created_by: user.id,
           title,
           description,
+          answers_visible: answers_visible || false,
         },
         { transaction: t }
       )
@@ -94,7 +96,7 @@ class TestController {
       if (result === "notPassed") {
         where[Op.and].push({
           id: {
-            [Op.notIn]: literal(
+            [Op.notIn]: sequelize.literal(
               `(SELECT "test_id" FROM "Result" WHERE "user_id" = ${user.id})`
             ),
           },
@@ -105,7 +107,7 @@ class TestController {
       if (first_name && first_name.trim() !== "")
         userWhere.first_name = { [Op.iLike]: `${first_name.trim()}%` }
       if (second_name && second_name.trim() !== "")
-        userWhere.secondName = { [Op.iLike]: `${second_name.trim()}%` }
+        userWhere.second_name = { [Op.iLike]: `${second_name.trim()}%` }
 
       const { count, rows: tests } = await Test.findAndCountAll({
         where,
@@ -161,6 +163,7 @@ class TestController {
         where: { id: testId },
         attributes: [
           "title",
+          "answers_visible",
           [
             sequelize.fn("COUNT", sequelize.col("Questions.id")),
             "question_count",
@@ -209,6 +212,7 @@ class TestController {
 
       return res.json({
         totalPages,
+        answers_visible: testInfo.answers_visible,
         testTitle: testInfo.title,
         questionCount: testInfo.dataValues.question_count,
         passedCount: passedCount,
@@ -395,6 +399,7 @@ class TestController {
 
       return res.json({
         title: test.title,
+        answers_visible: test.answers_visible,
         questions: formattedQuestions,
         result,
         userAnswers: formattedUserAnswers,
@@ -576,26 +581,38 @@ class TestController {
 
         if (questionType === "input") {
           // For input type questions, compare directly
-          results[questionId] = userAnswer === correctAnswer
+          const isCorrect = userAnswer === correctAnswer
+          results[questionId] = isCorrect
           correctAnswers[questionId] = correctAnswer
-          if (results[questionId]) resultScore++
+          if (isCorrect) resultScore++
           await Answer.create({
             user_id: user.id,
             question_id: questionId,
             answer_text: userAnswer,
+          })
+          await UserQuestion.create({
+            user_id: user.id,
+            question_id: questionId,
+            is_correct: isCorrect,
           })
         } else if (questionType === "radio") {
           // For radio type questions, find the correct option
           const correctOption = await Option.findOne({
             where: { question_id: questionId, is_correct: true },
           })
-          results[questionId] = correctOption && correctOption.id === userAnswer
+          const isCorrect = correctOption && correctOption.id === userAnswer
+          results[questionId] = isCorrect
           correctAnswers[questionId] = correctOption ? correctOption.id : null
-          if (results[questionId]) resultScore++
+          if (isCorrect) resultScore++
           await Answer.create({
             user_id: user.id,
             question_id: questionId,
             selected_option_id: userAnswer,
+          })
+          await UserQuestion.create({
+            user_id: user.id,
+            question_id: questionId,
+            is_correct: isCorrect,
           })
         } else if (questionType === "checkbox") {
           // For checkbox type questions, find all correct options
@@ -605,12 +622,13 @@ class TestController {
           const correctOptionIds = correctOptions.map((option) => option.id)
 
           // Check if user's answers match the correct options
-          results[questionId] =
+          const isCorrect =
             Array.isArray(userAnswer) &&
             userAnswer.length === correctOptionIds.length &&
             userAnswer.every((answer) => correctOptionIds.includes(answer))
+          results[questionId] = isCorrect
           correctAnswers[questionId] = correctOptionIds
-          if (results[questionId]) resultScore++
+          if (isCorrect) resultScore++
           if (userAnswer) {
             for (const answer of userAnswer) {
               await Answer.create({
@@ -620,6 +638,11 @@ class TestController {
               })
             }
           }
+          await UserQuestion.create({
+            user_id: user.id,
+            question_id: questionId,
+            is_correct: isCorrect,
+          })
         }
       }
       const result = await Result.create({
@@ -635,6 +658,53 @@ class TestController {
         correctAnswers,
         result,
       })
+    } catch (e) {
+      next(e)
+      console.log(e)
+    }
+  }
+
+  async getQuestionStats(req, res, next) {
+    try {
+      const { testId } = req.params
+      if (!testId) {
+        return res.status(400).json({ error: "Missing testId parameter" })
+      }
+
+      // Fetch all questions for the given test
+      const questions = await Question.findAll({ where: { test_id: testId } })
+      if (questions.length === 0) {
+        return res
+          .status(404)
+          .json({ error: "No questions found for this test" })
+      }
+
+      const stats = []
+
+      for (const question of questions) {
+        const questionId = question.id
+
+        // Count correct answers
+        const correctCount = await UserQuestion.count({
+          where: { question_id: questionId, is_correct: true },
+        })
+
+        // Count incorrect answers
+        const incorrectCount = await UserQuestion.count({
+          where: { question_id: questionId, is_correct: false },
+        })
+
+        // Add the stats for the current question to the stats array
+        stats.push({
+          questionId,
+          questionText: question.question_text,
+          correctCount,
+          incorrectCount,
+        })
+      }
+
+      // Send back the statistics
+      return res.json({ stats })
     } catch (e) {
       next(e)
       console.log(e)
@@ -684,6 +754,29 @@ class TestController {
       const totalPages = Math.ceil(count / pageSize)
 
       return res.json({ tests, totalPages, count })
+    } catch (e) {
+      next(e)
+    }
+  }
+
+  async deleteTest(req, res, next) {
+    try {
+      const { id } = req.params
+      const test = await Test.findOne({ where: { id } })
+      await test.destroy()
+      res.json({ message: "удалено" })
+    } catch (e) {
+      next(e)
+    }
+  }
+
+  async changeAnswersVisible(req, res, next) {
+    try {
+      const { testId } = req.params
+      const { answers_visible } = req.body
+      const test = await Test.findOne({ where: { id: testId } })
+      await test.update({ answers_visible })
+      res.json({ message: "обновлено" })
     } catch (e) {
       next(e)
     }

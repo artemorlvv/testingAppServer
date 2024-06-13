@@ -22,5 +22,11 @@ userRouter.post(
   checkRoleMiddleware(["ADMIN"]),
   userController.changeRole
 )
+userRouter.delete(
+  "/:id",
+  authMiddleware,
+  checkRoleMiddleware(["ADMIN"]),
+  userController.deleteUser
+)
 
 export default userRouter

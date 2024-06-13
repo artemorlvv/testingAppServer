@@ -205,6 +205,17 @@ class UserController {
     }
   }
 
+  async deleteUser(req, res, next) {
+    try {
+      const { id } = req.params
+      const user = await User.findOne({ where: { id } })
+      await user.destroy()
+      res.json({ message: "удален" })
+    } catch (e) {
+      next(e)
+    }
+  }
+
   async changeRole(req, res, next) {
     try {
       const { userId, role } = req.body

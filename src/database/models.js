@@ -41,6 +41,11 @@ const Test = sequelize.define("Test", {
     allowNull: false,
     defaultValue: DataTypes.NOW,
   },
+  answers_visible: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    default: false,
+  },
 })
 
 const Question = sequelize.define("Question", {
@@ -86,28 +91,54 @@ const Result = sequelize.define("Result", {
   },
 })
 
-Test.belongsTo(User, { foreignKey: "created_by" })
-User.hasMany(Test, { foreignKey: "created_by" })
+const UserQuestion = sequelize.define("UserQuestion", {
+  is_correct: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+  },
+})
 
-Question.belongsTo(Test, { foreignKey: "test_id" })
-Test.hasMany(Question, { foreignKey: "test_id" })
+Test.belongsTo(User, { foreignKey: "created_by", onDelete: "CASCADE" })
+User.hasMany(Test, { foreignKey: "created_by", onDelete: "CASCADE" })
 
-Option.belongsTo(Question, { foreignKey: "question_id" })
-Question.hasMany(Option, { foreignKey: "question_id" })
+Question.belongsTo(Test, { foreignKey: "test_id", onDelete: "CASCADE" })
+Test.hasMany(Question, { foreignKey: "test_id", onDelete: "CASCADE" })
 
-Answer.belongsTo(User, { foreignKey: "user_id" })
-User.hasMany(Answer, { foreignKey: "user_id" })
+Option.belongsTo(Question, { foreignKey: "question_id", onDelete: "CASCADE" })
+Question.hasMany(Option, { foreignKey: "question_id", onDelete: "CASCADE" })
 
-Answer.belongsTo(Question, { foreignKey: "question_id" })
-Question.hasMany(Answer, { foreignKey: "question_id" })
+Answer.belongsTo(User, { foreignKey: "user_id", onDelete: "CASCADE" })
+User.hasMany(Answer, { foreignKey: "user_id", onDelete: "CASCADE" })
 
-Answer.belongsTo(Option, { foreignKey: "selected_option_id", allowNull: true })
-Option.hasMany(Answer, { foreignKey: "selected_option_id" })
+Answer.belongsTo(Question, { foreignKey: "question_id", onDelete: "CASCADE" })
+Question.hasMany(Answer, { foreignKey: "question_id", onDelete: "CASCADE" })
 
-Result.belongsTo(User, { foreignKey: "user_id" })
-User.hasMany(Result, { foreignKey: "user_id" })
+Answer.belongsTo(Option, {
+  foreignKey: "selected_option_id",
+  allowNull: true,
+  onDelete: "CASCADE",
+})
+Option.hasMany(Answer, {
+  foreignKey: "selected_option_id",
+  onDelete: "CASCADE",
+})
 
-Result.belongsTo(Test, { foreignKey: "test_id" })
-Test.hasMany(Result, { foreignKey: "test_id" })
+Result.belongsTo(User, { foreignKey: "user_id", onDelete: "CASCADE" })
+User.hasMany(Result, { foreignKey: "user_id", onDelete: "CASCADE" })
 
-export { User, Test, Question, Option, Answer, Result }
+Result.belongsTo(Test, { foreignKey: "test_id", onDelete: "CASCADE" })
+Test.hasMany(Result, { foreignKey: "test_id", onDelete: "CASCADE" })
+
+UserQuestion.belongsTo(User, { foreignKey: "user_id", onDelete: "CASCADE" })
+User.hasMany(UserQuestion, { foreignKey: "user_id", onDelete: "CASCADE" })
+
+UserQuestion.belongsTo(Question, {
+  foreignKey: "question_id",
+  onDelete: "CASCADE",
+})
+Question.hasMany(UserQuestion, {
+  foreignKey: "question_id",
+  onDelete: "CASCADE",
+})
+
+export { User, Test, Question, Option, Answer, Result, UserQuestion }

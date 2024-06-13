@@ -30,12 +30,30 @@ testRouter.post(
   checkRoleMiddleware(["TEACHER", "ADMIN"]),
   testController.getResultsWithParams
 )
+testRouter.put(
+  "/change_answers_visible/:testId",
+  authMiddleware,
+  checkRoleMiddleware(["TEACHER", "ADMIN"]),
+  testController.changeAnswersVisible
+)
 testRouter.get("/:id", authMiddleware, testController.getTest)
 testRouter.get(
   "/result/:id",
   authMiddleware,
   checkRoleMiddleware(["TEACHER", "ADMIN"]),
   testController.getTestResult
+)
+testRouter.get(
+  "/stats/:testId",
+  authMiddleware,
+  checkRoleMiddleware(["TEACHER", "ADMIN"]),
+  testController.getQuestionStats
+)
+testRouter.delete(
+  "/:id",
+  authMiddleware,
+  checkRoleMiddleware(["TEACHER", "ADMIN"]),
+  testController.deleteTest
 )
 testRouter.post("/check", authMiddleware, testController.checkAnswers)
 
